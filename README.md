@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 MPPT Maximum Peak Power Tacking
 ===================== 
 Controller board for Solar Battery charger
