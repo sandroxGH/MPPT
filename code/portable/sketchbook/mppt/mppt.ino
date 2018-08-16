@@ -206,7 +206,7 @@ void setup() {
   lcd.clear();
   lcd.setBacklight(LOW);
   PowerOnEn =  bitRead(EEPROM.read(M_PowreOnEn), 0);
-  VOutTH = EEPROM.read(M_VOutThrHold1)
+  VOutTH = EEPROM.read(M_VOutThrHold1);
   VOutTH = (VOutTH <<8)+ EEPROM.read(M_VOutThrHold);
 
 
@@ -704,7 +704,7 @@ Exit:
         }
       }
     }
-  }`
+  }
   
    
 }

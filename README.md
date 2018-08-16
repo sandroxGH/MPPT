@@ -6,9 +6,9 @@ Controller board for Solar Battery charger
 
 Project preview
 =====================
-<img src="pict/board.jpg" width="400">
+<img src="pict/board1.jpg" width="400">
 
-<img src="pict/Panel.jpg" width="400">
+<img src="pict/board2.jpg" width="400">
 
 License and copyright
 =====================
