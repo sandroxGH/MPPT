@@ -7,6 +7,7 @@
   This test is to log th eperformance of the solar panel during the day, 
   all the data are writhe on Sd card in csv format 
 */
+
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>   //SDA=A4 SCL=A5
@@ -16,100 +17,101 @@
 #include <TimerOne.h>
 
 //-------Alarm Led Blink Pattern-------
-#define Pattern_No_All	2500
-#define Pattern_All1	1000
-#define Pattern_All2	500
-#define Pattern_All3	200
+#define Pattern_No_All  2500
+#define Pattern_All1  1000
+#define Pattern_All2  500
+#define Pattern_All3  200
 
 //-----------Timer Setting-------------
-#define EepromWipe		0 		// init procedure for new eeprom
-#define EepromRead		0   	// all the eprom data is print on serial port in startup
-#define SystemLog		1		//Enable of System Log on external eprom
-#define FDebug			0		// Enable Fast Debug
-#define SDebug			0		// Eneble Time Debug
-#define TDebug			1000	// Time of debug 
-#define TLcd			1000	// Time Lcd Refresh 
-#define TTwl			2000	// Time for LDR value calculation
-#define TMotMan			61000	// Time 
-#define TPatAll			30000	// Time of led alarm indication 
-#define TExitMenu		30000	// Time for auto-exit menu 
-#define TI2cTest		30000	// Time for bus test 
-#define TSvTShDw		300	// Time to Save and Shutdown , power off the PerPwr enable
+#define EepromWipe    0     // init procedure for new eeprom
+#define EepromRead    0     // all the eprom data is print on serial port in startup
+#define SystemLog   1   //Enable of System Log on external eprom
+#define FDebug      0   // Enable Fast Debug
+#define SDebug      0   // Eneble Time Debug
+#define TDebug      1000  // Time of debug 
+#define TLcd      1000  // Time Lcd Refresh 
+#define TTwl      2000  // Time for LDR value calculation
+#define TMotMan     61000 // Time 
+#define TPatAll     30000 // Time of led alarm indication 
+#define TExitMenu   30000 // Time for auto-exit menu 
+#define TI2cTest    30000 // Time for bus test 
+#define TSvTShDw    300 // Time to Save and Shutdown , power off the PerPwr enable
 
 
-#define SelPatt			50		// Selection minimal time 
-#define EntPatt			1500	// Enter
-#define TPulButt		100   // Time for auto toogles button  
-#define MenuPage		1		// Number of page in Menu 
-#define VisuPageMax		3
-#define VisuPageMin		0	
-#define AvgNum			8
+#define SelPatt     50    // Selection minimal time 
+#define EntPatt     1500  // Enter
+#define TPulButt    100   // Time for auto toogles button  
+#define MenuPage    3   // Number of page in Menu 
+#define VisuPageMax   3
+#define VisuPageMin   0 
+#define AvgNum      8
+
+
+#define UpLimVOTH	1400
+#define DwLimVOTH	900
 
 //---------MPTT Parameter------------
-#define MinSolVolt		8000
-#define LowSolVolt		11000
-#define MaxSolVolt		28000
-#define MinSolWatt		20000
-#define TCtrl			100
-//#define VOutTH			500
+#define MinSolVolt    8000
+#define LowSolVolt    11000
+#define MaxSolVolt    28000
+#define MinSolWatt    20000
+#define TCtrl     100
+//#define VOutTH      500
 
 //---------LCD I2C Addres and pinout---
-#define EEPROM_ADDR		0x50
-#define LCD_I2C_ADDR	0x20
-#define DS1307_ADDR		0x68
-#define BACKLIGHT_PIN	3
-#define En_pin			2
-#define Rw_pin			1
-#define Rs_pin			0
-#define D4_pin			4
-#define D5_pin			5
-#define D6_pin			6
-#define D7_pin			7
+#define EEPROM_ADDR   0x50
+#define LCD_I2C_ADDR  0x20
+#define DS1307_ADDR   0x68
+#define BACKLIGHT_PIN 3
+#define En_pin      2
+#define Rw_pin      1
+#define Rs_pin      0
+#define D4_pin      4
+#define D5_pin      5
+#define D6_pin      6
+#define D7_pin      7
 
 
 
 //----------Arduino PinOut-------------
-#define EdButt			2
-#define UpButt			3
-#define DwButt			5
-#define LedR			6
-#define LedY			7
-#define LedG			8	
-#define LedR_BIn		A7
-#define chipSelect  	4
-#define PwmConv			9
-#define PwmConvEn		10
-#define PanelVoltag		A0
-#define PanelCurrent	A1
-#define	OutConvVoltage	A2
+#define EdButt      2
+#define UpButt      3
+#define DwButt      5
+#define LedR      6
+#define LedY      7
+#define LedG      8 
+#define LedR_BIn    A7
+#define chipSelect    4
+#define PwmConv     9
+#define PwmConvEn   10
+#define PanelVoltag   A0
+#define PanelCurrent  A1
+#define OutConvVoltage  A2
 
 //----------EEPROM Data storage----
-#define M_PowreOnEn	1
-#define M_VOutThrHold	2
-#define M_VOutThrHold1	3
-
-
-
+#define M_PowreOnEn 1
+#define M_VOutThrHold 2
+#define M_VOutThrHold1  3
 
 String Filename = "MPTT.csv";
 
-long TimeLcd  	= 0;  		//Update LCD Time
-long TimeDeb 	= 0;  		//Debug Time
-//long TimeTwl  	= 0;		//
-// long TimeMotMan = 0;		// Time to update the Mechanical time
-// long TimeMotEn 	= 0;
-long TimeBlink 	= 0;
-long TimePatt	= 0;
+long TimeLcd    = 0;      //Update LCD Time
+long TimeDeb  = 0;      //Debug Time
+//long TimeTwl    = 0;    //
+// long TimeMotMan = 0;   // Time to update the Mechanical time
+// long TimeMotEn   = 0;
+long TimeBlink  = 0;
+long TimePatt = 0;
 long TimeEdButt = 0;
-long TimeUpButt	= 0;
+long TimeUpButt = 0;
 long TimeDwButt = 0;
 
-long TimeMenu 	= 0;
+long TimeMenu   = 0;
 // long TimeI2cTest = 0;
 // long TimeSvTShDw = 0;
 long TimePulseUp = 0;
 long TimePulseDw  = 0;
-long TimeCtrl	=0;
+long TimeCtrl =0;
 
 byte DataTime[7];
 byte SetDataTime[7];
@@ -155,7 +157,7 @@ char VisuPage, VisuPageOld;
 bool AllReady  = 0;
 bool MClAdAll  = 0;
 bool MClDlAll  = 0;
-bool MClWaAll	= 0;
+bool MClWaAll = 0;
 bool LcdAll    = 0;
 bool RtcAll    = 0;
 bool EpromAll  = 0;
@@ -351,10 +353,11 @@ void loop() {
    VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
    AIn = map(ReadAdc(PanelCurrent),0,1023,0,3401);
    VOut = map(ReadAdc(OutConvVoltage),0,1023,0,3000);
-   if((VOut < (VOutTH - 5)) && (PWM < 1024)) PWM +=1;
-   if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
-  // Timer1.setPwmDuty(PwmConv,100);              
-  
+   if(PowerOnEn){
+		if((VOut < (VOutTH - 5)) && (PWM < 1024)) PWM +=1;
+		if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
+		  // Timer1.setPwmDuty(PwmConv,100);              
+		}
 
   }
   //------------Main LCD Mng-----------
@@ -706,5 +709,58 @@ Exit:
     }
   }
   
-   
+  if ((Menu == 2) && (EditMode)) {
+	  
+    if (InitEdit == 0) {
+	  SetData = PowerOnEn;
+      lcd.setCursor(0, 1);
+      if(SetData)	lcd.print( "On");
+		else lcd.print("Off");
+      lcd.print(" ->");
+      lcd.blink();
+      InitEdit = 1;
+    }
+    if (InitEdit) {
+		if (UpButtState) {
+        if (SetData < 1)SetData += 1;
+        if (SetData > 1)SetData = 1;
+      }
+      if (DwButtState) {
+        if (SetData > 0)SetData -= 1;
+        if (SetData < 0)SetData = 0;
+      }
+      if (SetData != SetDataOld) {
+        SetDataOld = SetData;
+        lcd.setCursor(7, 1);
+        if(SetData)	lcd.print( "On");
+		else lcd.print("Off");
+      }
+    }
+  }
+  
+ if ((Menu == 3) && (EditMode)) {
+    if (InitEdit == 0) {
+	  SetData = VOutTH;
+      lcd.setCursor(0, 1);
+      lcd.print( SetData, DEC);
+	  lcd.print(" ->");
+      lcd.blink();
+      InitEdit = 1;
+    }
+    if (InitEdit) {
+		if (UpButtState) {
+        if (SetData <= UpLimVOTH)SetData += 1;
+        if (SetData >= UpLimVOTH)SetData = UpLimVOTH;
+      }
+      if (DwButtState) {
+        if (SetData >= DwLimVOTH)SetData -= 1;
+        if (SetData <= DwLimVOTH)SetData = DwLimVOTH;
+      }
+      if (SetData != SetDataOld) {
+        SetDataOld = SetData;
+        lcd.setCursor(7, 1);
+        lcd.print( SetData, DEC);
+      }
+    } 
+  }
 }
