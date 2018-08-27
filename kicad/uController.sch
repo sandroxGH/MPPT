@@ -779,10 +779,6 @@ F 3 "" H 4675 3200 50  0001 C CNN
 	1    4675 3200
 	1    0    0    -1  
 $EndComp
-Text GLabel 4675 2600 1    60   Input ~ 0
-V_IN
-Text GLabel 5100 2600 1    60   Input ~ 0
-V_OUT
 Text GLabel 2150 6575 0    60   Input ~ 0
 v_IN
 $Comp
@@ -1439,10 +1435,6 @@ F 3 "" H 4675 3200 50  0001 C CNN
 	1    4675 3200
 	1    0    0    -1  
 $EndComp
-Text GLabel 4675 2600 1    60   Input ~ 0
-V_IN
-Text GLabel 5100 2600 1    60   Input ~ 0
-V_OUT
 Text GLabel 2150 6575 0    60   Input ~ 0
 v_IN
 $Comp
@@ -1467,4 +1459,14 @@ F 3 "" H 5850 2575 50  0001 C CNN
 	1    5850 2575
 	0    1    1    0   
 $EndComp
+Text HLabel 4675 2600 1    60   Input ~ 0
+V_in
+Text HLabel 5100 2600 1    60   Input ~ 0
+V_out
+Text HLabel 5850 3600 0    60   Input ~ 0
+A_in
+Text HLabel 7400 2825 2    60   Output ~ 0
+PWM
+Text HLabel 7400 2700 2    60   Output ~ 0
+PWM_E
 $EndSCHEMATC
