@@ -55,7 +55,7 @@
 #define LowSolVolt    11000
 #define MaxSolVolt    28000
 #define MinSolWatt    20000
-#define TCtrl     100
+#define TCtrl	      100
 //#define VOutTH      500
 #define AOffSet	     23 
 
@@ -245,7 +245,7 @@ void setup() {
     // AllBuff[7] =  ALARM;
     // AllBuff[8] = RTC_NOT_RUN;
     // AllReady = 1;
-	Pattern = Pattern_All3;
+    Pattern = Pattern_All3;
   }
   else {
     // for (i = 0; i <= 6; i++) AllBuff[i] = DataTime[i];
