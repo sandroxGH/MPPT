@@ -48,7 +48,7 @@
 
 
 #define UpLimVOTH	1400
-#define DwLimVOTH	900
+#define DwLimVOTH	300
 
 //---------MPTT Parameter------------
 #define MinSolVolt    8000
@@ -57,6 +57,7 @@
 #define MinSolWatt    20000
 #define TCtrl     100
 //#define VOutTH      500
+#define AOffSet	     23 
 
 //---------LCD I2C Addres and pinout---
 #define EEPROM_ADDR   0x50
@@ -242,7 +243,8 @@ void setup() {
     // AllBuff[7] = EVENT;
     // AllBuff[8] = START_UP;
     // AllReady = 1;
-    Pattern = Pattern_No_All;
+    Serial.print("RTC Running");
+    //Pattern = Pattern_No_All;
   }
   
   
@@ -257,20 +259,26 @@ char ButtonState(char PinN, long *Time, bool Pulse = 0 , long *Time1 = 0) {
     if (*Time1 == 0 ) *Time1 = millis();
     if (millis() > *Time1) {
       *Time1 = (millis() + TPulButt);
-      if (FDebug) Serial.print("3 ");
+#if defined FDebug
+      Serial.print("3 ");
+#endif
       return 1;
     }
   }
   if (Pulse && digitalRead(PinN)) *Time1 = 0;
   if (digitalRead(PinN) && (*Time)) {
     if (millis() >= EntPatt  + *Time) {
-      if (FDebug) Serial.println("2");
+#if defined FDebug 
+      Serial.println("2");
+#endif
       *Time = 0;
       return 2;
     }
     if (millis() >= SelPatt  + *Time) {
       *Time = 0;
-      if (FDebug) Serial.println("1");
+#if defined FDebug
+      Serial.println("1");
+#endif
       return 1;
     }
   }
@@ -351,10 +359,11 @@ void loop() {
 	if (millis() > TimeCtrl){
    TimeCtrl = (millis()+TCtrl);
    VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
-   AIn = map(ReadAdc(PanelCurrent),0,1023,0,3401);
+   AIn = map((ReadAdc(PanelCurrent)- AOffSet),0,1023,0,3401);
+   //AIn = (ReadAdc(PanelCurrent));
    VOut = map(ReadAdc(OutConvVoltage),0,1023,0,3000);
    if(PowerOnEn){
-		if((VOut < (VOutTH - 5)) && (PWM < 1024)) PWM +=1;
+		if((VOut < (VOutTH - 5)) && (PWM < 1023)) PWM +=1;
 		if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
 		  // Timer1.setPwmDuty(PwmConv,100);              
 		}
@@ -374,8 +383,7 @@ case 0:
     sprintf(buffer,"VI=%04d AI=%04d",VIn,AIn);
     lcd.setCursor(0, 0);
     lcd.print( buffer );
-    Test=map(PWM,0,1024,0,100); 
-    sprintf(buffer,"PWM=%03d VO=%04d",PWM,VOut);
+    sprintf(buffer,"PWM=%03d VO=%04d",map(PWM,0,1023,0,100),VOut);
     lcd.setCursor(0, 1);
     lcd.print( buffer );
 break;
@@ -492,7 +500,9 @@ break;
 SaveOk:
     lcd.setCursor(14, 1);
     lcd.print("Ok");
-    if (FDebug) Serial.print("OK");
+#if defined FDebug
+    Serial.print("OK");
+#endif
     //delay(1000);
     TimeLcd = (millis() + 1000);       //delay the LCD refresh
     // for (i = 0; i <= 6; i++) AllBuff[i] = DataTime[i];
@@ -505,7 +515,9 @@ SaveFault:
     lcd.clear();
     lcd.setCursor(2, 0);
     lcd.print("Errore Data");
-    if (FDebug) Serial.print("Errore Data");
+#if defined FDebug
+    Serial.print("Errore Data");
+#endif
     //delay(1500);
     TimeLcd = (millis() + 1500);
     // for (i = 0; i <= 6; i++) AllBuff[i] = DataTime[i];
@@ -529,7 +541,9 @@ Exit:
   if ((Menu != MenuOld) && (EditMode == 0)) {       //Menu page update
     lcd.clear();
     lcd.setCursor(0, 0);
-    //if (FDebug) Serial.println(Menu, DEC);
+#if defined FDebug
+    //Serial.println(Menu, DEC);
+#endif
     switch (Menu) {
       case 1:
         lcd.print("Date and Time set");
@@ -719,6 +733,7 @@ Exit:
       lcd.print(" ->");
       lcd.blink();
       InitEdit = 1;
+      SetDataOld = 3; 
     }
     if (InitEdit) {
 		if (UpButtState) {
