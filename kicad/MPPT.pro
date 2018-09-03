@@ -1,4 +1,4 @@
-update=24/08/2018 17.26.13
+update=sab 01 set 2018 22:08:07 CEST
 version=1
 last_client=kicad
 [pcbnew]
@@ -23,8 +23,6 @@ ModuleOutlineThickness=0.150000000000
 [cvpcb]
 version=1
 NetIExt=net
-[general]
-version=1
 [schematic_editor]
 version=1
 PageLayoutDescrFile=
@@ -77,3 +75,5 @@ LibName35=Relay
 LibName36=relays
 LibName37=nxp
 LibName38=dc-dc
+[general]
+version=1
