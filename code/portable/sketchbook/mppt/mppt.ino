@@ -26,8 +26,8 @@
 #define EepromWipe    0     // init procedure for new eeprom
 #define EepromRead    0     // all the eprom data is print on serial port in startup
 #define SystemLog   1   //Enable of System Log on external eprom
-#define FDebug      0   // Enable Fast Debug
-#define SDebug      0   // Eneble Time Debug
+//#define FDebug         // Enable Fast Debug
+//#define SDebug         // Eneble Time Debug
 #define TDebug      1000  // Time of debug 
 #define TLcd      1000  // Time Lcd Refresh 
 #define TTwl      2000  // Time for LDR value calculation
@@ -187,8 +187,9 @@ void setup() {
   analogReference(DEFAULT);
   
   Serial.begin(115200);
+#if defined FDebug
   //Serial.println("MPPT Msystem");
-  
+#endif  
   Wire.begin();
   lcd.begin(16, 2);
   lcd.setBacklightPin(BACKLIGHT_PIN, POSITIVE);
@@ -203,7 +204,7 @@ void setup() {
 	digitalWrite(LedY, bitRead(i, 1));
 	digitalWrite(LedG, bitRead(i, 2));
 	digitalWrite(LedR_BIn, bitRead(i, 3));
-	delay(500); 
+	delay(200); 
   }
   //delay(1500);
   lcd.clear();
@@ -213,17 +214,23 @@ void setup() {
   VOutTH = (VOutTH <<8)+ EEPROM.read(M_VOutThrHold);
 
 
-
+#if defined FDebug
   Serial.print("Init SD card...");
+#endif
   if (!SD.begin(chipSelect)) {
+#if defined FDebug
     Serial.println("Sd Inti Error");
+#endif
     Pattern = Pattern_All3;
   }
+#if defined  FDebug
   else Serial.println("Done");
-  
+#endif  
   //Controllo nome  e generazione di unnuovo file
   for (i = 0; SD.exists(Filename); i++)Filename = ("MPPT" + String(i, DEC) + ".csv");
+#if defined FDebug
   Serial.println(Filename);
+#endif
   File dataFile = SD.open(Filename, FILE_WRITE);
   if (dataFile) {
     dataFile.println("MPPT Msytem");
@@ -231,7 +238,9 @@ void setup() {
   }
  
   if (! GetDateTime(&DataTime[0], 6)) {
+#if defined FDebug
     Serial.println("RTC Fault");
+#endif
     // for (i = 0; i <= 6; i++) AllBuff[i] = 99;
     // AllBuff[7] =  ALARM;
     // AllBuff[8] = RTC_NOT_RUN;
@@ -243,7 +252,9 @@ void setup() {
     // AllBuff[7] = EVENT;
     // AllBuff[8] = START_UP;
     // AllReady = 1;
+#if defined FDebug
     Serial.print("RTC Running");
+#endif
     //Pattern = Pattern_No_All;
   }
   
@@ -295,9 +306,11 @@ int ReadAdc(int channel){
   return(sum / AvgNum);                // divide sum by AvgNum to get average and return it
 }
 
+#if defined SDebug
 void Debug() {
   digitalWrite(LedG, !(digitalRead(LedG)));
 }
+#endif
 
 byte DecToBcd(byte val) {
   return (((val / 10) << 4) + (val % 10));
@@ -349,13 +362,13 @@ boolean CtrlData(byte dd, byte mm, byte yy) {
 }
 
 void loop() {
-
+#if defined SDebug
   //------------Time Debug Mng---------
   if ((millis() > TimeDeb) && SDebug) {
     TimeDeb = (millis() + TDebug);
     Debug();
   }
-  
+#endif  
 	if (millis() > TimeCtrl){
    TimeCtrl = (millis()+TCtrl);
    VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
