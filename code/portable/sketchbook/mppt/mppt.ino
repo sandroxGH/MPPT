@@ -42,7 +42,7 @@
 #define EntPatt     1500  // Enter
 #define TPulButt    100   // Time for auto toogles button  
 #define MenuPage    3   // Number of page in Menu 
-#define VisuPageMax   3
+#define VisuPageMax   2
 #define VisuPageMin   0 
 #define AvgNum      8
 
@@ -97,7 +97,9 @@
 String Filename = "MPTT.csv";
 
 long TimeLcd    = 0;      //Update LCD Time
+#if defined SDebug
 long TimeDeb  = 0;      //Debug Time
+#endif
 //long TimeTwl    = 0;    //
 // long TimeMotMan = 0;   // Time to update the Mechanical time
 // long TimeMotEn   = 0;
@@ -262,6 +264,7 @@ void setup() {
   Timer1.initialize(20);               // initialize timer1, and set a 20uS period
   Timer1.pwm(PwmConv, 500);              // setup pwm on pin 9, 0% duty cycle
   digitalWrite(PwmConvEn, PowerOnEn);    
+      
 }
 
 char ButtonState(char PinN, long *Time, bool Pulse = 0 , long *Time1 = 0) {
@@ -369,21 +372,26 @@ void loop() {
     Debug();
   }
 #endif  
-	if (millis() > TimeCtrl){
-   TimeCtrl = (millis()+TCtrl);
-   VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
-   AIn = map((ReadAdc(PanelCurrent)- AOffSet),0,1023,0,3401);
-   //AIn = (ReadAdc(PanelCurrent));
-   VOut = map(ReadAdc(OutConvVoltage),0,1023,0,3000);
-   if(PowerOnEn){
-		if((VOut < (VOutTH - 5)) && (PWM < 1023)) PWM +=1;
-		if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
-		  // Timer1.setPwmDuty(PwmConv,100);              
-		}
 
+  if(millis() > TimeCtrl){
+     TimeCtrl = (millis()+TCtrl);
+     VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
+     AIn = map((ReadAdc(PanelCurrent)- AOffSet),0,1023,0,3401);
+     //AIn = (ReadAdc(PanelCurrent));
+     VOut = map(ReadAdc(OutConvVoltage),0,1023,0,3000);
+    if(PowerOnEn){
+       if(!digitalRead(PwmConvEn)) digitalWrite(PwmConvEn, HIGH);
+       if((VOut < (VOutTH - 5)) && (PWM < 1023)) PWM +=1;
+       if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
+       Timer1.setPwmDuty(PwmConv,PWM);              
+      }
   }
+  if(!PowerOnEn){
+     PWM = 0;
+     digitalWrite(PwmConvEn, LOW);    
+     Timer1.setPwmDuty(PwmConv,0);              
+  }  
   //------------Main LCD Mng-----------
-
   if ((Menu == 0) && ((millis() > TimeLcd) || (VisuPage != VisuPageOld))) {
     TimeLcd = (millis() + TLcd);
     GetDateTime(&DataTime[0], 6);
@@ -400,16 +408,11 @@ case 0:
     lcd.setCursor(0, 1);
     lcd.print( buffer );
 break;
-
-case 1:	
-
-break;
-
 case 2:
-
+    lcd.setCursor(4, 0);
+    lcd.print("FreePage");
 break;
-
-case 3:
+case 1:
     sprintf(buffer,  "%02d/%02d/%d", DataTime[2], DataTime[1], DataTime[0]);
     lcd.setCursor(4, 0);
     lcd.print( buffer );
@@ -459,6 +462,7 @@ break;
 
   if ((EditState == 1) && (EditMode == 0)) Menu += 1;
   if ((Menu == 0) && (UpButtState )) VisuPage +=1;
+  if ((Menu == 0) && (DwButtState)) PowerOnEn = !PowerOnEn;
   if ((EditState == 2) && Menu && (EditMode == 1)) {        //Parameter saving and date-time consistency check
     if (Menu == 1) {
       if (CtrlData(SetDataTime[2], SetDataTime[1], SetDataTime[0])) {  //Coherent date control
