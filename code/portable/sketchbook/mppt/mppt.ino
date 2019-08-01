@@ -55,9 +55,9 @@
 #define LowSolVolt    11000
 #define MaxSolVolt    28000
 #define MinSolWatt    20000
-#define TCtrl	      100
+#define TCtrl	      10
 //#define VOutTH      500
-#define AOffSet	     23 
+#define AOffSet	     0
 
 //---------LCD I2C Addres and pinout---
 #define EEPROM_ADDR   0x50
@@ -128,7 +128,7 @@ byte SerAll[3];
 int Pattern = 0;
 int SetData, SetDataOld;
 int VIn, AIn, PIn, VOut;
-int PWM, Test;
+int PWM, Test, PwmDisp;
 int VOutTH;
 
 //int HMec, MMec ;
@@ -259,11 +259,12 @@ void setup() {
 #endif
     //Pattern = Pattern_No_All;
   }
-  
-  
+//  //registri TMR1 per pilotare i PWM a 16 MHz
+//  TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM11) | _BV(WGM10);
+//  TCCR1B = _BV(CS12);
   Timer1.initialize(20);               // initialize timer1, and set a 20uS period
-  Timer1.pwm(PwmConv, 500);              // setup pwm on pin 9, 0% duty cycle
-  digitalWrite(PwmConvEn, PowerOnEn);    
+  Timer1.pwm(PwmConv, 0);              // setup pwm on pin 9, 0% duty cycle
+  digitalWrite(PwmConvEn, LOW);    
       
 }
 
@@ -376,13 +377,22 @@ void loop() {
   if(millis() > TimeCtrl){
      TimeCtrl = (millis()+TCtrl);
      VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
-     AIn = map((ReadAdc(PanelCurrent)- AOffSet),0,1023,0,3401);
+     AIn = map((ReadAdc(PanelCurrent)- AOffSet),0,1023,0,4450);
      //AIn = (ReadAdc(PanelCurrent));
      VOut = map(ReadAdc(OutConvVoltage),0,1023,0,3000);
+     
     if(PowerOnEn){
-       if(!digitalRead(PwmConvEn)) digitalWrite(PwmConvEn, HIGH);
-       if((VOut < (VOutTH - 5)) && (PWM < 1023)) PWM +=1;
+       if(!digitalRead(PwmConvEn)) {
+        digitalWrite(PwmConvEn, HIGH);
+       //PWM = 300;
+        PWM = map ((VOutTH/(VIn/100)),0,100,0,900);
+
+        //Timer1.setPwmDuty(PwmConv,PWM); 
+       }
+       
+       if((VOut < (VOutTH - 5)) && (PWM < 900)) PWM +=1;
        if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
+       
        Timer1.setPwmDuty(PwmConv,PWM);              
       }
   }
@@ -404,7 +414,8 @@ case 0:
     sprintf(buffer,"VI=%04d AI=%04d",VIn,AIn);
     lcd.setCursor(0, 0);
     lcd.print( buffer );
-    sprintf(buffer,"PWM=%03d VO=%04d",map(PWM,0,1023,0,100),VOut);
+    PwmDisp = map(PWM,0,1023,0,100);
+    sprintf(buffer,"PWM=%03d VO=%04d",PwmDisp, VOut);
     lcd.setCursor(0, 1);
     lcd.print( buffer );
 break;
