@@ -9,8 +9,8 @@
 */
 #include <Arduino.h>
 #include <SPI.h>
-#include <SD.h>
-//#include <Fat16.h>
+//#include <SD.h>
+#include <Fat16.h>
 //#include <Fat16util.h> // use functions to print strings from flash memory
 
 #include <Wire.h>   //SDA=A4 SCL=A5
@@ -19,10 +19,10 @@
 #include <EEPROM.h>
 #include <TimerOne.h>
 
+#include <main.h>
 
-
-//SdCard card;
-//Fat16 file;
+SdCard card;
+Fat16 file;
 
 //-------Alarm Led Blink Pattern-------
 #define Pattern_No_All	2500
@@ -31,14 +31,15 @@
 #define Pattern_All3    200
 
 //-----------Project Setting-------------
-#define SystemLog		  1     //Enable of System Log on external eprom
-#define FDebug        0     // Enable Fast Debug
-#define SDebug        0     // Eneble Time Debug
+//#define SystemLog		  1     //Enable of System Log on external eprom
+//#define FDebug           // Enable Fast Debug
+//#define SDebug           // Eneble Time Debug
 
 //-----------Timer Setting-------------
 #define TDebug      1000  // Time of debug
-#define TLcd        1000  // Time Lc        
-
+#define TLcd        1000  // Time Lc 
+#define TLog        5000       
+#define TDelPw      20000
 //------------Main LCD Mng-----------
 #define TPatAll     30000 // Time of led alarm indication 
 #define TExitMenu  	30000 // Time for auto-exit menu 
@@ -46,7 +47,7 @@
 #define SelPatt		  	50      // Selection minimal time 
 #define EntPatt			1500    // Enter
 #define TPulButt		100     // Time for auto toogles button  
-#define MenuPage		3       // Number of page in Menu 
+#define MenuPage		4       // Number of page in Menu 
 #define VisuPageMax		2
 #define VisuPageMin		0 
 #define AvgNum			  8
@@ -58,10 +59,17 @@
 #define LowSolVolt	11000
 #define MaxSolVolt	28000
 #define MinSolWatt	20000
-#define TCtrl			  10
-#define AOffSet			0
-#define UpLimVOTH		1400
-#define DwLimVOTH		300
+#define TCtrl	    20
+#define AOffSet		0
+#define UpLimVOTH	1500
+#define DwLimVOTH	300
+#define VInMin      1500
+
+#define PwmMin      0
+#define PwmMax      820
+int TimeTS =0;
+#define TTS         2000/TCtrl    //2 seconds
+
 
 //---------LCD I2C Addres and pinout---
 #define EEPROM_ADDR		0x50
@@ -95,6 +103,7 @@
 #define M_PowreOnEn     1
 #define M_VOutThrHold   2 
 #define M_VOutThrHold1  3
+#define M_DynamicTH     4
 
 String Filename = "MPTT.csv";
 
@@ -108,19 +117,23 @@ unsigned long TimeEdButt = 0;
 unsigned long TimeUpButt = 0;
 unsigned long TimeDwButt = 0;
 
-unsigned long TimeMenu   = 0;
+unsigned long TimeMenu=0;
+unsigned long TimeLog=0;
 unsigned long TimePulseUp = 0;
 unsigned long TimePulseDw  = 0;
 unsigned long TimeCtrl =0;
+unsigned long TimeDelPw=0;
 
 byte DataTime[7];
 byte SetDataTime[7];
-char buffer[30];
+char buffer[40];
+char FileName[14];
 //byte SerAll[3];
 
-int Pattern = Pattern_No_All;
+unsigned int Pattern = Pattern_No_All;
 int SetData, SetDataOld;
-int VIn, AIn, PIn, VOut;
+int VIn, AIn, PIn, VOut; 
+int POut;
 int PWM, Test, PwmDisp;
 int VOutTH;
 
@@ -140,15 +153,20 @@ bool PattAllOn = 0;
 bool EditMode  = 0;
 bool InitEdit  = 0;
 bool PowerOnEn =0;
+bool PwAutoStart =0;
+bool DynamcTH   =0;
+
 
 LiquidCrystal_I2C lcd(LCD_I2C_ADDR, En_pin, Rw_pin, Rs_pin, D4_pin, D5_pin, D6_pin, D7_pin);
 
+void(* resetFunc) (void) = 0;   //Reset SW
+
 char ButtonState(char PinN, unsigned long *Time, bool Pulse = 0 , unsigned long *Time1 = 0) {
-  if ((*Time == 0) && !digitalRead(PinN))  *Time = millis();
-  if (Pulse && !digitalRead(PinN) && (millis() > (*Time + (EntPatt * 3 ))))  {
+  if ((*Time==0) && !digitalRead(PinN))  *Time = millis();
+  if (Pulse && !digitalRead(PinN) && ((millis() -*Time) > (EntPatt * 3 )))  {
     if (*Time1 == 0 ) *Time1 = millis();
-    if (millis() > *Time1) {
-      *Time1 = (millis() + TPulButt);
+    if ((millis() - *Time1)>TPulButt) {
+      *Time1 = millis();
 #if defined FDebug
       Serial.print("3 ");
 #endif
@@ -157,14 +175,14 @@ char ButtonState(char PinN, unsigned long *Time, bool Pulse = 0 , unsigned long 
   }
   if (Pulse && digitalRead(PinN)) *Time1 = 0;
   if (digitalRead(PinN) && (*Time)) {
-    if (millis() >= EntPatt  + *Time) {
+    if ((millis() - *Time)> EntPatt) {
       *Time = 0;
 #if defined FDebug 
       Serial.println("2");
 #endif
       return 2;
     }
-    if (millis() >= SelPatt  + *Time) {
+    if ((millis() - *Time)> SelPatt) {
       *Time = 0;
 #if defined FDebug 
       Serial.println("1");
@@ -189,7 +207,8 @@ int ReadAdc(int channel){
 #if defined SDebug
 void Debug() {
   //digitalWrite(LedG, !(digitalRead(LedG)));
-  Serial.println(Pattern, DEC);
+  Serial.println("debug");
+  //Serial.println(Pattern, DEC);
 }
 #endif
 
@@ -242,16 +261,42 @@ boolean CtrlData(byte dd, byte mm, byte yy) {
   
 }
 
-// void writeNumber(uint32_t n) {
-//   uint8_t buf[10];
-//   uint8_t i = 0;
-//   do {
-//     i++;
-//     buf[sizeof(buf) - i] = n%10 + '0';
-//     n /= 10;
-//   } while (n);
-//   file.write(&buf[sizeof(buf) - i], i); // write the part of buf with the number
-// } 
+void writeNumber(uint32_t n) {
+  uint8_t buf[10];
+  uint8_t i = 0;
+  do {
+    i++;
+    buf[sizeof(buf) - i] = n%10 + '0';
+    n /= 10;
+  } while (n);
+  file.write(&buf[sizeof(buf) - i], i); // write the part of buf with the number
+} 
+
+void InitSD(){
+  //----------------Fat16-----------
+   // initialize the SD card
+  if (!card.begin(chipSelect)) {
+   #if defined FDebug
+    Serial.println("card.begin");
+    #endif
+    Pattern = Pattern_All3;
+  }
+  // initialize a FAT16 volume
+  if (!Fat16::init(&card)) {
+    #if defined FDebug
+    Serial.println("Fat16::init");
+     #endif
+    Pattern = Pattern_All3;
+  }
+  // create a new file or append if just exist
+  sprintf(FileName,"%02d%02d%d.txt", DataTime[0], DataTime[1], DataTime[2]);
+  // O_CREAT - create the file if it does not exist
+  // O_EXCL - fail if the file exists
+  // O_WRITE - open for write
+  // O_APPEND  - to continue to write existing file
+  file.open(FileName, O_CREAT | O_APPEND | O_WRITE);
+  
+}
 
 void setup() {
   pinMode(EdButt, INPUT_PULLUP);
@@ -265,6 +310,11 @@ void setup() {
   
   analogReference(DEFAULT);
   
+  while(VIn < 800){
+    delay(Pattern_All3);
+    digitalWrite(LedR, (digitalRead(LedR ) ^ 1));
+    VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
+  }
   Serial.begin(115200);
 #if defined FDebug
   Serial.println("MPPT Msystem");
@@ -277,7 +327,8 @@ void setup() {
   lcd.print("Msystem MPPT");
   lcd.setCursor(1, 1);
   lcd.print(__DATE__);
-   
+  delay(1000);  
+
   for (i=1;i<=16;i=i<<1){				//LampTest
 	digitalWrite(LedR, bitRead(i, 0));
 	digitalWrite(LedY, bitRead(i, 1));
@@ -290,7 +341,7 @@ void setup() {
   PowerOnEn =  bitRead(EEPROM.read(M_PowreOnEn), 0);
   VOutTH = EEPROM.read(M_VOutThrHold1);
   VOutTH = (VOutTH <<8)+ EEPROM.read(M_VOutThrHold);
- 
+  DynamcTH= bitRead(EEPROM.read(M_DynamicTH), 0);
   if (! GetDateTime(&DataTime[0], 6)) {
 #if defined FDebug
     Serial.println("RTC Fault");
@@ -299,7 +350,7 @@ void setup() {
   }
   else {
 #if defined FDebug
-    Serial.print("RTC Running");
+    Serial.println("RTC Running");
 #endif
     //Pattern = Pattern_No_All;
   }
@@ -327,40 +378,19 @@ void setup() {
   //   dataFile.close();
   // }
 
-//----------------Fat16-----------
-//    // initialize the SD card
-//   if (!card.begin(chipSelect)) Serial.println("card.begin");
-  
-//   // initialize a FAT16 volume
-//   if (!Fat16::init(&card)) Serial.println("Fat16::init");
-
-//   // create a new file
-//   char name[] = "WRITE00.TXT";
-//   for (uint8_t i = 0; i < 100; i++) {
-//     name[5] = i/10 + '0';
-//     name[6] = i%10 + '0';
-//     // O_CREAT - create the file if it does not exist
-//     // O_EXCL - fail if the file exists
-//     // O_WRITE - open for write
-//     if (file.open(name, O_CREAT | O_EXCL | O_WRITE)) break;
-//     //if (file.open(name, O_CREAT | O_WRITE)) break;
-//   }
-//   if (!file.isOpen()) Serial.println("file.open");
-//   Serial.println("Writing to: ");
-//   Serial.println(name);
-//  // write 100 line to file
-//   for (uint8_t i = 0; i < 100; i++) {
-//     file.write("line "); // write string from RAM
-//     writeNumber(i);
-//     file.write_P(PSTR(" millis = ")); // write string from flash
-//     writeNumber(millis());
-//     file.write("\r\n"); // file.println() would work also
-//   }
-//   // close file and force write of all data to the SD card
-//   file.close();
-//   Serial.println("Done");
-//-------------------------------------------------
-
+  InitSD();
+  if (!file.isOpen()) Serial.println("file.open");
+  #if defined FDebug
+  Serial.println("Writing to: ");
+  Serial.println(FileName);
+  #endif
+  sprintf(buffer,  "%02d:%02d:%02d-Init", DataTime[4], DataTime[5], DataTime[6]);
+  file.println(buffer);
+  //file.println("Init");
+  file.close();
+  #if defined FDebug
+  Serial.println("Done");
+  #endif
 //  //registri TMR1 per pilotare i PWM a 16 MHz
 //  TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM11) | _BV(WGM10);
 //  TCCR1B = _BV(CS12);
@@ -374,14 +404,14 @@ void setup() {
 void loop() {
 #if defined SDebug
   //------------Time Debug Mng---------
-  if (millis() > TimeDeb) {
-    TimeDeb = (millis() + TDebug);
+  if ((millis()-TimeDeb)>TDebug) {
+    TimeDeb = millis();
     Debug();
   }
 #endif  
 
-  if(millis() > TimeCtrl){
-     TimeCtrl = (millis()+TCtrl);
+  if((millis() - TimeCtrl)>TCtrl){
+     TimeCtrl = millis();
      VIn = map(ReadAdc(PanelVoltag),0,1023,0, 3000);
      AIn = map((ReadAdc(PanelCurrent)- AOffSet),0,1023,0,4450);
      //AIn = (ReadAdc(PanelCurrent));
@@ -391,37 +421,116 @@ void loop() {
        if(!digitalRead(PwmConvEn)) {
         digitalWrite(PwmConvEn, HIGH);
        //PWM = 300;
-        PWM = map ((VOutTH/(VIn/100)),0,100,0,900);
-
-        //Timer1.setPwmDuty(PwmConv,PWM); 
+        PWM = map ((VOutTH/(VIn/100)),0,100,0,1023);
+        digitalWrite(LedG, HIGH);
+        InitSD();
+        if (!file.isOpen()) Pattern = Pattern_All3;
+        //Timer1.setPwmDuty(PwmConv,PWM);
+        PwAutoStart =0; 
        }
-       if((VOut < (VOutTH - 5)) && (PWM < 900)) PWM +=1;
-       if((VOut > (VOutTH + 5)) && (PWM > 1)) PWM -=1;
-       Timer1.setPwmDuty(PwmConv,PWM);              
+      //  if(DynamcTH){
+      //   if ((VIn < (VInMin + 50))&&(VOutTH > DwLimVOTH))  VOutTH -=1;	
+      //   if ((VIn > (VInMin + 20))&&(VOutTH < UpLimVOTH))  VOutTH +=1;	
+      //  }
+      //if((VOut < (VOutTH-50)||(VOut > (VOutTH+50)))) PWM = map ((VOutTH/(VIn/100)),0,100,0,PwmMax); 
+      if((VOut < (VOutTH - 2)) && (PWM < PwmMax)) PWM +=1;
+      if((VOut > (VOutTH + 2)) && (PWM > 1)) PWM -=1;
+      if (PWM>PwmMax) PWM = PwmMax;
+      Timer1.setPwmDuty(PwmConv,PWM);
+      if(PWM >= PwmMax){
+        TimeTS++;
+        if (TimeTS >= TTS){
+          TimeDelPw= millis();
+          PowerOnEn=0;
+          PwAutoStart =1;
+        }
+      }else TimeTS =0;          
+
+      //  if((VIn>VInMin)&&((millis()-TimeDelPw)>TDelPw)){
+      //     Timer1.setPwmDuty(PwmConv,PWM); 
+      //  }
+      //  else{
+      //    TimeDelPw= millis();
+      //    PowerOnEn=0;
+      //    PwAutoStart =1;
+      //  }             
       }
   }
   if(!PowerOnEn){
      PWM = 0;
+     digitalWrite(LedG, LOW);
      digitalWrite(PwmConvEn, LOW);    
-     Timer1.setPwmDuty(PwmConv,0);              
+     Timer1.setPwmDuty(PwmConv,0); 
+     file.close();  
+     TimeTS=0;           
   }  
-   //---------Red Led Program State-----
+  
+  if(PwAutoStart && ((millis()-TimeDelPw)>TDelPw) && (VIn >VInMin))  PowerOnEn = 1;
 
-  if (millis() >= TimeBlink) {
+   //----------SD logging------------
+   if(PowerOnEn && ((millis()-TimeLog)>TLog)){
+     TimeLog=millis();
+     sprintf(buffer,"%02d:%02d:%02d;%04d;%04d;%03d;%04d;%04d",DataTime[4], DataTime[5], DataTime[6],VIn,AIn,PwmDisp,VOut,POut);
+     file.println(buffer);
+   }
+
+   //---------Red Led Program State-----
+  if ((millis()-TimeBlink)>Pattern) {
     digitalWrite(LedR, (digitalRead(LedR ) ^ 1));
     if ((Pattern != Pattern_No_All) && !PattAllOn) {
-      TimePatt = (millis() + TPatAll);
+      TimePatt = millis();
       PattAllOn = 1;
       Serial.println("ALL");
     }
-    else TimeBlink = (millis() + Pattern);
+    else TimeBlink = millis();
 
-    if (millis() > TimePatt) {
+    if ((millis()- TimePatt)>TPatAll) {
       Pattern = Pattern_No_All;
       PattAllOn = 0;
     }
   }
+//------------Main LCD Mng-----------
+  if ((Menu == 0) && (((millis()-TimeLcd)> TLcd) || (VisuPage != VisuPageOld))) {
+    TimeLcd = millis();
+    GetDateTime(&DataTime[0], 6);
+    if (VisuPage > VisuPageMax) VisuPage = VisuPageMin;
+    lcd.clear();
+    VisuPageOld = VisuPage;
+     
+    int Dat= VOut/10;
+    POut= ((Dat * Dat )/10);
 
+    if(DynamcTH && PowerOnEn){
+        if ((VIn < (VInMin + 50))&&(VOutTH > DwLimVOTH))  VOutTH -=1;	
+        if ((VIn > (VInMin + 20))&&(VOutTH < UpLimVOTH))  VOutTH +=1;	
+       }
+    
+    switch(VisuPage){
+    case 0:
+      sprintf(buffer,"VI=%04d AI=%04d",VIn,AIn);
+      lcd.setCursor(0, 0);
+      lcd.print( buffer );
+      PwmDisp = map(PWM,0,PwmMax,0,100);
+      sprintf(buffer,"PWM=%03d VO=%04d",PwmDisp, VOut);
+      lcd.setCursor(0, 1);
+      lcd.print( buffer );
+    break;
+    case 1:
+      sprintf(buffer,"PO=%4d VOT=%4d",POut,VOutTH);
+      lcd.setCursor(0, 0);
+      lcd.print( buffer );
+    break;
+    case 2:
+      sprintf(buffer,  "%02d/%02d/%d", DataTime[2], DataTime[1], DataTime[0]);
+      lcd.setCursor(4, 0);
+      lcd.print( buffer );
+      //buffer[10] = 0;
+      sprintf(buffer,  "%02d:%02d:%02d", DataTime[4], DataTime[5], DataTime[6]);
+      lcd.setCursor(4, 1);
+      lcd.print( buffer );
+    break;
+    }
+}
    //---------Menu Mng Edit Mode---------
 
   EditState = ButtonState(EdButt, &TimeEdButt);
@@ -429,13 +538,15 @@ void loop() {
   DwButtState = ButtonState(DwButt, &TimeDwButt , 1, &TimePulseDw);
 
   if (( EditState) || (UpButtState) || (DwButtState)) {
-    TimeMenu =  (millis() + TExitMenu);
+    TimeMenu = millis();
     lcd.setBacklight(HIGH);
   }
-  if (millis() > TimeMenu )  {
+  if (TimeMenu && ((millis() - TimeMenu)>TExitMenu))  {
+    TimeMenu=0;
     Menu = 0;
     EditMode = 0;
     InitEdit = 0;
+    VisuPageOld=0;
     Cursor = 0;
     lcd.noBlink();
     lcd.setBacklight(LOW);
@@ -463,6 +574,11 @@ void loop() {
        EEPROM.write(M_VOutThrHold1,VOutTH>>8);
        goto SaveOk;
      }
+     if (Menu == 4) {
+       DynamcTH = SetData;
+       EEPROM.write(M_DynamicTH, DynamcTH);
+       goto SaveOk;
+     }
     
 SaveOk:
     lcd.setCursor(14, 1);
@@ -470,7 +586,7 @@ SaveOk:
 #if defined FDebug
     Serial.print("OK");
 #endif
-    TimeLcd = (millis() + 1000);       //delay the LCD refresh
+    TimeLcd = millis();       //delay the LCD refresh
      goto Exit;
 SaveFault:
     lcd.clear();
@@ -479,7 +595,7 @@ SaveFault:
 #if defined FDebug
     Serial.print("Errore Data");
 #endif
-    TimeLcd = (millis() + 1500);
+    TimeLcd = millis();
     Pattern = Pattern_All1;
 Exit:
     SetData = 0;
@@ -508,6 +624,9 @@ Exit:
         break;
       case 3:
         lcd.print("Out Threshold");
+        break;
+      case 4:
+        lcd.print("Dynam Threshold");
         break;
     }
     MenuOld = Menu;
@@ -666,7 +785,7 @@ Exit:
   if ((Menu == 2) && (EditMode)) {
 	  
     if (InitEdit == 0) {
-	  SetData = PowerOnEn;
+	  SetData = bitRead(EEPROM.read(M_PowreOnEn), 0);
       lcd.setCursor(0, 1);
       if(SetData)	lcd.print( "On");
 		else lcd.print("Off");
@@ -687,20 +806,21 @@ Exit:
       if (SetData != SetDataOld) {
         SetDataOld = SetData;
         lcd.setCursor(7, 1);
-        if(SetData)	lcd.print( "On");
-		else lcd.print("Off");
+        if(SetData)	lcd.print( "On ");
+		    else lcd.print("Off");
       }
     }
   }
   
  if ((Menu == 3) && (EditMode)) {
     if (InitEdit == 0) {
-	  SetData = VOutTH;
-      lcd.setCursor(0, 1);
-      lcd.print( SetData, DEC);
+    SetData = EEPROM.read(M_VOutThrHold1);
+    SetData = (SetData <<8)+ EEPROM.read(M_VOutThrHold);
+	  lcd.setCursor(0, 1);
+    lcd.print( SetData, DEC);
 	  lcd.print(" ->");
-      lcd.blink();
-      InitEdit = 1;
+    lcd.blink();
+    InitEdit = 1;
     }
     if (InitEdit) {
 		if (UpButtState) {
@@ -717,5 +837,34 @@ Exit:
         lcd.print( SetData, DEC);
       }
     } 
+  }
+  if ((Menu == 4) && (EditMode)) {
+	  
+    if (InitEdit == 0) {
+	  SetData = bitRead(EEPROM.read(M_DynamicTH), 0);
+      lcd.setCursor(0, 1);
+      if(SetData)	lcd.print( "On");
+		  else lcd.print("Off");
+      lcd.print(" ->");
+      lcd.blink();
+      InitEdit = 1;
+      SetDataOld = 3; 
+    }
+    if (InitEdit) {
+		if (UpButtState) {
+        if (SetData < 1)SetData += 1;
+        if (SetData > 1)SetData = 1;
+      }
+      if (DwButtState) {
+        if (SetData > 0)SetData -= 1;
+        if (SetData < 0)SetData = 0;
+      }
+      if (SetData != SetDataOld) {
+        SetDataOld = SetData;
+        lcd.setCursor(7, 1);
+        if(SetData)	lcd.print( "On ");
+		    else lcd.print("Off");
+      }
+    }
   }
 }
