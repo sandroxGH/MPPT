@@ -26,39 +26,39 @@
 
 //-------Alarm Led Blink Pattern-------
 #define Pattern_No_All	2500
-#define Pattern_All1	1000
-#define Pattern_All2	500
-#define Pattern_All3	200
+#define Pattern_All1    1000
+#define Pattern_All2    500
+#define Pattern_All3    200
 
 //-----------Project Setting-------------
-#define SystemLog		1   //Enable of System Log on external eprom
+#define SystemLog		  1     //Enable of System Log on external eprom
 #define FDebug        0     // Enable Fast Debug
 #define SDebug        0     // Eneble Time Debug
 
 //-----------Timer Setting-------------
-#define TDebug      	1000  // Time of debug 
+#define TDebug      1000  // Time of debug
 #define TLcd        1000  // Time Lc        
 
 //------------Main LCD Mng-----------
-#define TPatAll     	30000 // Time of led alarm indication 
-#define TExitMenu   	30000 // Time for auto-exit menu 
+#define TPatAll     30000 // Time of led alarm indication 
+#define TExitMenu  	30000 // Time for auto-exit menu 
 
-#define SelPatt			50    // Selection minimal time 
-#define EntPatt			1500  // Enter
-#define TPulButt		100   // Time for auto toogles button  
-#define MenuPage		3   // Number of page in Menu 
+#define SelPatt		  	50      // Selection minimal time 
+#define EntPatt			1500    // Enter
+#define TPulButt		100     // Time for auto toogles button  
+#define MenuPage		3       // Number of page in Menu 
 #define VisuPageMax		2
 #define VisuPageMin		0 
-#define AvgNum			8
+#define AvgNum			  8
 
 
 
 //---------MPTT Parameter------------
-#define MinSolVolt		8000
-#define LowSolVolt		11000
-#define MaxSolVolt		28000
-#define MinSolWatt		20000
-#define TCtrl			10
+#define MinSolVolt	8000
+#define LowSolVolt	11000
+#define MaxSolVolt	28000
+#define MinSolWatt	20000
+#define TCtrl			  10
 #define AOffSet			0
 #define UpLimVOTH		1400
 #define DwLimVOTH		300
@@ -68,13 +68,13 @@
 #define LCD_I2C_ADDR	0x20
 #define DS1307_ADDR		0x68
 #define BACKLIGHT_PIN	3
-#define En_pin			2
-#define Rw_pin			1
-#define Rs_pin			0
-#define D4_pin			4
-#define D5_pin			5
-#define D6_pin			6
-#define D7_pin			7
+#define En_pin			  2
+#define Rw_pin			  1
+#define Rs_pin			  0
+#define D4_pin			  4
+#define D5_pin			  5
+#define D6_pin			  6
+#define D7_pin			  7
 
 //----------Arduino PinOut-------------
 #define EdButt      	2
@@ -85,15 +85,15 @@
 #define LedG      		8 
 #define LedR_BIn    	A7
 #define chipSelect		4
-#define PwmConv			9
-#define PwmConvEn		10
+#define PwmConv			  9
+#define PwmConvEn		  10
 #define PanelVoltag		A0
 #define PanelCurrent	A1
 #define OutConvVoltage	A2
 
 //----------EEPROM Data storage----
-#define M_PowreOnEn 1
-#define M_VOutThrHold 2
+#define M_PowreOnEn     1
+#define M_VOutThrHold   2 
 #define M_VOutThrHold1  3
 
 String Filename = "MPTT.csv";
@@ -166,14 +166,14 @@ char ButtonState(char PinN, unsigned long *Time, bool Pulse = 0 , unsigned long 
     }
     if (millis() >= SelPatt  + *Time) {
       *Time = 0;
-#if defined FDebug
+#if defined FDebug 
       Serial.println("1");
 #endif
       return 1;
     }
     return 0;
-  }
-  else  return 0;
+  }  
+  else return 0;
 }
 
 int ReadAdc(int channel){
@@ -405,7 +405,7 @@ void loop() {
      digitalWrite(PwmConvEn, LOW);    
      Timer1.setPwmDuty(PwmConv,0);              
   }  
-  //---------Red Led Program State-----
+   //---------Red Led Program State-----
 
   if (millis() >= TimeBlink) {
     digitalWrite(LedR, (digitalRead(LedR ) ^ 1));
@@ -421,7 +421,7 @@ void loop() {
       PattAllOn = 0;
     }
   }
-  
+
    //---------Menu Mng Edit Mode---------
 
   EditState = ButtonState(EdButt, &TimeEdButt);
@@ -463,7 +463,7 @@ void loop() {
        EEPROM.write(M_VOutThrHold1,VOutTH>>8);
        goto SaveOk;
      }
-
+    
 SaveOk:
     lcd.setCursor(14, 1);
     lcd.print("Ok");
@@ -471,7 +471,7 @@ SaveOk:
     Serial.print("OK");
 #endif
     TimeLcd = (millis() + 1000);       //delay the LCD refresh
-    goto Exit;
+     goto Exit;
 SaveFault:
     lcd.clear();
     lcd.setCursor(2, 0);
@@ -557,7 +557,7 @@ Exit:
         }
       }
       if (UpButtState) {
-        switch (Cursor) {
+         switch (Cursor) {
           case 0:
             lcd.setCursor(4, 0);
             if (SetDataTime[2] <= 31) SetDataTime[2] += 1;
