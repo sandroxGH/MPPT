@@ -28,14 +28,8 @@ LIBS:atmel
 LIBS:contrib
 LIBS:valves
 LIBS:Altera
-LIBS:Msystem
 LIBS:motor_drivers
-LIBS:79xx-Regler-BuildingBlock_ModB_RevA-cache
-LIBS:Switch
-LIBS:Display
-LIBS:Relay
 LIBS:relays
-LIBS:nxp
 LIBS:dc-dc
 LIBS:MPPT-cache
 EELAYER 25 0
